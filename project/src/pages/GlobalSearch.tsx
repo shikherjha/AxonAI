@@ -25,14 +25,15 @@ const GlobalSearch: React.FC = () => {
 
     setLoading(true); // Set loading to true when search starts
     try {
-      const response = await axios.get('https://searx.be/search', {
+      const response = await axios.get('https://api.duckduckgo.com/', {
         params: {
           q: searchQuery,
-          format: 'json', // We want the results in JSON format
+          format: 'json',
+          api_key: import.meta.env.VITE_DUCKDUCKGO_API_KEY, // API key from .env
         },
       });
 
-      setResults(response.data.results); // Update results with SearxNG response
+      setResults(response.data.RelatedTopics); // Update results with DuckDuckGo response
     } catch (error) {
       console.error('Error fetching search results:', error);
     } finally {
@@ -146,9 +147,9 @@ const GlobalSearch: React.FC = () => {
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-semibold mb-2">{result.title}</h3>
+                      <h3 className="font-semibold mb-2">{result.Text || result.Result}</h3>
                       <p className={`text-sm mb-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {result.content}
+                        {result.AbstractText || result.Abstract}
                       </p>
                     </div>
                     <button

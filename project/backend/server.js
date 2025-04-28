@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const axios = require('axios');
-const xml2js = require('xml2js');
+const corsAnywhere = require('cors-anywhere'); // Importing the CORS Anywhere package
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -99,52 +99,14 @@ app.get('/api/me', authenticateToken, (req, res) => {
   }
 });
 
-// Function to fetch papers from arXiv
-// Function to fetch papers from arXiv
-const fetchArxivPapers = async (query) => {
-    try {
-      // Construct the arXiv API URL
-      const url = `http://export.arxiv.org/api/query?search_query=all:${query}&start=0&max_results=10`;
-      console.log(`Fetching from arXiv with URL: ${url}`);
-  
-      // Make the API request to arXiv
-      const response = await axios.get(url);
-      console.log('arXiv response:', response.data);  // Log the raw response data
-  
-      // Parse the XML response to JSON format
-      const parsedData = await parseXml(response.data);
-      console.log('Parsed arXiv data:', parsedData);  // Log the parsed data
-  
-      // Extract relevant data from the parsed JSON
-      const papers = parsedData.feed.entry.map((entry) => ({
-        title: entry.title[0],
-        authors: entry.author.map(author => author.name[0]),
-        summary: entry.summary[0],
-        published: entry.published[0],
-        link: entry.link[0].$.href,  // Link to the full paper
-      }));
-  
-      return papers;
-    } catch (error) {
-      console.error('Error fetching papers from arXiv:', error.message);  // Log the specific error
-      throw error;
-    }
-  };
-  
-// Helper function to parse the XML data to JSON
-const parseXml = (xmlData) => {
-  return new Promise((resolve, reject) => {
-    xml2js.parseString(xmlData, { explicitArray: false }, (err, result) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
-};
+// CORS proxy setup
+const corsProxy = corsAnywhere.createServer({
+  originWhitelist: [], // Allows all origins
+  requireHeaders: [], // Allows all headers
+  removeHeaders: ['cookie', 'authorization'], // Prevents sensitive headers from being forwarded
+});
 
-// Route to handle global search (search arXiv and other resources)
+// Route to handle global search using SearxNG
 app.get('/api/search', async (req, res) => {
   const { query } = req.query;
 
@@ -152,22 +114,16 @@ app.get('/api/search', async (req, res) => {
     return res.status(400).json({ message: 'Search query is required' });
   }
 
+  const searxUrl = `https://searx.be/search?q=${encodeURIComponent(query)}&format=json`;
+
   try {
-    // Fetch results from arXiv
-    const arxivResults = await fetchArxivPapers(query);
-
-    // You can add more API calls here for other sources like Open Library, LibriVox, etc.
-    
-    // Combine the results (if needed)
-    const results = {
-      arxiv: arxivResults,
-      // Add other sources here
-    };
-
-    // Return the search results
-    res.json(results);
+    // Proxy the request to the external SearxNG instance
+    corsProxy.emit('request', req, res, {
+      target: searxUrl,
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching data from external sources' });
+    console.error('Error with CORS proxy:', error);
+    res.status(500).json({ message: 'Error fetching data from SearxNG' });
   }
 });
 
