@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom'; // Import Link from react-router-dom
 import { FeatureCardProps } from '../utils/types';
 
 const FeatureCard: React.FC<FeatureCardProps> = ({ 
@@ -20,9 +21,9 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
       
       {/* Add CTA button with glow effect for specific features */}
       {(title === 'Curate Test' || title === 'Learning Pathway') && (
-        <button className="mt-4 py-2 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-all hover:shadow-glow">
+        <Link to={`/${title.toLowerCase().replace(/\s+/g, '-')}`} className="mt-4 py-2 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-all hover:shadow-glow">
           Get Started
-        </button>
+        </Link>
       )}
     </div>
   );
