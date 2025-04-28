@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Env files (Prevent secret leakage)
+.env
+.env.local
