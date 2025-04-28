@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Book, FileText, Newspaper, Headphones, Video, Cuboid as Cube, Filter, Bookmark, Sun, Moon } from 'lucide-react';
+import axios from 'axios'; // Axios for API requests
 
 const categories = [
   { id: 'articles', name: 'Articles', icon: Newspaper },
@@ -13,8 +14,38 @@ const categories = [
 
 const GlobalSearch: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [results, setResults] = useState<any[]>([]); // State to store search results
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [loading, setLoading] = useState(false); // Loading state
+
+  // Handle search query and API request
+  const handleSearch = async () => {
+    if (searchQuery.trim() === '') return; // Prevent empty searches
+
+    setLoading(true); // Set loading to true when search starts
+    try {
+      const response = await axios.get('https://searx.be/search', {
+        params: {
+          q: searchQuery,
+          format: 'json', // We want the results in JSON format
+        },
+      });
+
+      setResults(response.data.results); // Update results with SearxNG response
+    } catch (error) {
+      console.error('Error fetching search results:', error);
+    } finally {
+      setLoading(false); // Set loading to false once the request is completed
+    }
+  };
+
+  // Handle "Enter" key press for search
+  const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   return (
     <div className={`min-h-screen pt-24 ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-white'}`}>
@@ -33,15 +64,23 @@ const GlobalSearch: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleKeyPress} // Listen for "Enter" key press
                   placeholder="Search for knowledge..."
                   className={`w-full pl-12 pr-4 py-4 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow ${
-                    isDarkMode 
-                      ? 'bg-gray-800 text-white border-gray-700' 
+                    isDarkMode
+                      ? 'bg-gray-800 text-white border-gray-700'
                       : 'bg-white text-gray-900 border border-gray-200'
                   }`}
                 />
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               </div>
+              <button
+                onClick={handleSearch} // Trigger search on click
+                className="ml-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title="Search"
+              >
+                <Search size={24} />
+              </button>
               <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
                 className="ml-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -67,8 +106,8 @@ const GlobalSearch: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.1 }}
               className={`p-4 rounded-lg flex flex-col items-center justify-center gap-2 transition-all hover:scale-105 ${
-                isDarkMode 
-                  ? 'bg-gray-800 hover:bg-gray-700' 
+                isDarkMode
+                  ? 'bg-gray-800 hover:bg-gray-700'
                   : 'bg-gray-50 hover:bg-gray-100'
               }`}
             >
@@ -78,80 +117,39 @@ const GlobalSearch: React.FC = () => {
           ))}
         </motion.div>
 
-        {/* Filters Button (Mobile) */}
-        <div className="md:hidden mb-4">
-          <button
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className={`w-full p-3 rounded-lg flex items-center justify-center gap-2 ${
-              isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
-            }`}
-          >
-            <Filter size={20} />
-            <span>Filters</span>
-          </button>
-        </div>
+        {/* Search Results */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="flex-1"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Search Results</h2>
+          </div>
 
-        <div className="flex gap-6">
-          {/* Filters Sidebar (Desktop) */}
-          <motion.aside
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className={`hidden md:block w-64 flex-shrink-0 ${
-              isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
-            } p-4 rounded-lg sticky top-24 h-fit`}
-          >
-            <h3 className="font-semibold mb-4">Filters</h3>
-            {/* Filter sections would go here */}
-          </motion.aside>
-
-          {/* Results Area */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="flex-1"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Recent Resources</h2>
-              <button
-                className="flex items-center gap-2 text-primary-600 hover:text-primary-700"
-                title="View saved items"
-              >
-                <Bookmark size={20} />
-                <span className="hidden sm:inline">Saved Items</span>
-              </button>
-            </div>
-
-            {/* Example Result Cards */}
-            <div className="grid gap-4">
-              {[1, 2, 3].map((item) => (
+          <div className="grid gap-4">
+            {loading ? (
+              <div className="text-center text-gray-400">Loading...</div>
+            ) : results.length > 0 ? (
+              results.map((result, index) => (
                 <motion.div
-                  key={item}
+                  key={index}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: item * 0.1 }}
+                  transition={{ duration: 0.3, delay: index * 0.1 }}
                   className={`p-4 rounded-lg transition-all hover:scale-[1.01] ${
-                    isDarkMode 
-                      ? 'bg-gray-800 hover:bg-gray-700' 
+                    isDarkMode
+                      ? 'bg-gray-800 hover:bg-gray-700'
                       : 'bg-white hover:shadow-lg border border-gray-100'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-semibold mb-2">Example Resource Title</h3>
+                      <h3 className="font-semibold mb-2">{result.title}</h3>
                       <p className={`text-sm mb-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Brief description of the resource content goes here...
+                        {result.content}
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        {['Physics', 'Advanced'].map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-xs px-2 py-1 rounded-full bg-primary-100 text-primary-700"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
                     </div>
                     <button
                       className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -161,10 +159,12 @@ const GlobalSearch: React.FC = () => {
                     </button>
                   </div>
                 </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
+              ))
+            ) : (
+              <div className="text-center text-gray-400">No results found</div>
+            )}
+          </div>
+        </motion.div>
       </div>
     </div>
   );
