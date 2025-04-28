@@ -87,18 +87,7 @@ const HeroSection: React.FC = () => {
               transition={{ duration: 0.8, delay: 0.8, ease: 'easeOut' }}
               className="flex flex-col sm:flex-row gap-4"
             >
-              <button
-                onClick={handleStartLearningClick}
-                className="px-6 py-3 bg-primary-600 text-white rounded-md font-medium hover:bg-primary-700 transition-all hover:shadow-glow"
-              >
-                Start Learning
-              </button>
-              <button
-                onClick={handleExploreFeaturesClick}
-                className="px-6 py-3 border border-gray-300 rounded-md font-medium hover:border-primary-600 hover:text-primary-600 transition-colors"
-              >
-                Explore Features
-              </button>
+              
             </motion.div>
           </div>
 

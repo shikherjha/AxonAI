@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const axios = require('axios');
-const corsAnywhere = require('cors-anywhere'); // Importing the CORS Anywhere package
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -28,21 +27,16 @@ app.get('/', (req, res) => {
 app.post('/api/register', async (req, res) => {
   const { fullName, email, password } = req.body;
 
-  // Check if any field is missing
   if (!fullName || !email || !password) {
     return res.status(400).json({ message: 'Full Name, Email, and Password are required' });
   }
 
-  // Check if user already exists
   const userExists = users.find(user => user.email === email);
   if (userExists) {
     return res.status(400).json({ message: 'User already exists' });
   }
 
-  // Hash the password
   const hashedPassword = await bcrypt.hash(password, 10);
-
-  // Save user (including full name)
   users.push({ fullName, email, password: hashedPassword });
 
   res.status(201).json({ message: 'User registered successfully', fullName, email });
@@ -52,24 +46,20 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
 
-  // Check if email or password is missing
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required' });
   }
 
-  // Find user by email
   const user = users.find(user => user.email === email);
   if (!user) {
     return res.status(400).json({ message: 'Invalid email or password' });
   }
 
-  // Validate password
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) {
     return res.status(400).json({ message: 'Invalid email or password' });
   }
 
-  // Create token
   const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
   res.json({ message: 'Login successful', token });
@@ -99,31 +89,32 @@ app.get('/api/me', authenticateToken, (req, res) => {
   }
 });
 
-// CORS proxy setup
-const corsProxy = corsAnywhere.createServer({
-  originWhitelist: [], // Allows all origins
-  requireHeaders: [], // Allows all headers
-  removeHeaders: ['cookie', 'authorization'], // Prevents sensitive headers from being forwarded
-});
-
-// Route to handle global search using SearxNG
+// Route to handle global search using DuckDuckGo API
 app.get('/api/search', async (req, res) => {
-  const { query } = req.query;
+  const { query, category } = req.query;
 
   if (!query) {
     return res.status(400).json({ message: 'Search query is required' });
   }
 
-  const searxUrl = `https://searx.be/search?q=${encodeURIComponent(query)}&format=json`;
+  // Adding "educational content" to the query to filter for educational results
+  const searchQuery = `${query} educational content`;
+
+  const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(searchQuery)}&format=json`;
 
   try {
-    // Proxy the request to the external SearxNG instance
-    corsProxy.emit('request', req, res, {
-      target: searxUrl,
+    const response = await axios.get(ddgUrl);
+    const filteredResults = response.data.RelatedTopics.filter(result => {
+      if (category) {
+        return result.Result && result.Result.toLowerCase().includes(category.toLowerCase());
+      }
+      return true; // If no category is selected, return all results
     });
+
+    res.json({ results: filteredResults });
   } catch (error) {
-    console.error('Error with CORS proxy:', error);
-    res.status(500).json({ message: 'Error fetching data from SearxNG' });
+    console.error('Error fetching data from DuckDuckGo API:', error);
+    res.status(500).json({ message: 'Error fetching data from DuckDuckGo API' });
   }
 });
 

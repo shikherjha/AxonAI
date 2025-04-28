@@ -3,7 +3,6 @@ import { MessageCircle, X, Paperclip, Mic, Send, GraduationCap } from 'lucide-re
 import { motion, AnimatePresence } from 'framer-motion';
 import { getChatbotResponse } from '../utils/chatbotAPI';  // Adjusted path for utils folder
 
-
 const ChatbotButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
@@ -11,7 +10,7 @@ const ChatbotButton: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<string[]>([]); // <-- Maintain chat history to show previous responses
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isMicSupported] = useState('mediaDevices' in navigator);
-  
+
   const handleFileUpload = () => {
     fileInputRef.current?.click();
   };
@@ -43,7 +42,11 @@ const ChatbotButton: React.FC = () => {
         const response = await getChatbotResponse(message);
         
         // Add the new message and response to chat history
-        setChatHistory(prev => [...prev, `You: ${message}`, `AI: ${response}`]);
+        setChatHistory(prev => [
+          ...prev, 
+          `You: ${message}`,
+          `AI: ${response.replace(/\n/g, '\n\n')}` // Add double newlines to create paragraph spacing
+        ]);
 
         // Clear the input field
         setMessage('');
@@ -89,7 +92,7 @@ const ChatbotButton: React.FC = () => {
                 <div>
                   {chatHistory.map((msg, index) => (
                     <div key={index} className="py-2">
-                      <p>{msg}</p>
+                      <p className="whitespace-pre-line">{msg}</p> {/* Ensures proper line breaks in message */}
                     </div>
                   ))}
                 </div>
@@ -112,11 +115,7 @@ const ChatbotButton: React.FC = () => {
                 {isMicSupported && (
                   <button
                     onClick={handleMicToggle}
-                    className={`p-2 rounded-full transition-colors ${
-                      isRecording
-                        ? 'text-red-500 hover:text-red-600 hover:bg-red-50'
-                        : 'text-gray-500 hover:text-primary-600 hover:bg-gray-100'
-                    }`}
+                    className={`p-2 rounded-full transition-colors ${isRecording ? 'text-red-500 hover:text-red-600 hover:bg-red-50' : 'text-gray-500 hover:text-primary-600 hover:bg-gray-100'}`}
                     title="Voice Input"
                   >
                     <Mic size={20} />
@@ -142,11 +141,7 @@ const ChatbotButton: React.FC = () => {
                 <button
                   onClick={handleSendMessage}
                   disabled={!message.trim()}
-                  className={`p-3 rounded-lg transition-colors ${
-                    message.trim()
-                      ? 'bg-primary-600 text-white hover:bg-primary-700'
-                      : 'bg-gray-100 text-gray-400'
-                  }`}
+                  className={`p-3 rounded-lg transition-colors ${message.trim() ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-gray-100 text-gray-400'}`}
                 >
                   <Send size={20} />
                 </button>
