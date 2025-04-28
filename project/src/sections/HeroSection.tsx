@@ -1,9 +1,22 @@
-import React, { useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, useAnimation } from 'framer-motion';
 import { Brain } from 'lucide-react';
+import ChatbotButton from '../components/ChatbotButton'; // Import your chatbot component
 
 const HeroSection: React.FC = () => {
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const featuresRef = useRef<HTMLElement | null>(null); // Reference to Features Section
   const controls = useAnimation();
+
+  const handleStartLearningClick = () => {
+    setIsChatbotOpen(true); // Open chatbot when "Start Learning" button is clicked
+  };
+
+  const handleExploreFeaturesClick = () => {
+    if (featuresRef.current) {
+      featuresRef.current.scrollIntoView({ behavior: 'smooth' }); // Smooth scroll to features section
+    }
+  };
 
   useEffect(() => {
     const shimmerInterval = setInterval(() => {
@@ -63,10 +76,7 @@ const HeroSection: React.FC = () => {
               transition={{ duration: 0.8, delay: 0.5, ease: 'easeOut' }}
               className="text-xl text-gray-600 mb-8 max-w-lg"
             >
-              <motion.span
-                animate={controls}
-                className="inline-block"
-              >
+              <motion.span animate={controls} className="inline-block">
                 Curate Knowledge, Explore Smarter, Evolve Faster
               </motion.span>
             </motion.p>
@@ -77,15 +87,21 @@ const HeroSection: React.FC = () => {
               transition={{ duration: 0.8, delay: 0.8, ease: 'easeOut' }}
               className="flex flex-col sm:flex-row gap-4"
             >
-              <button className="px-6 py-3 bg-primary-600 text-white rounded-md font-medium hover:bg-primary-700 transition-all hover:shadow-glow">
+              <button
+                onClick={handleStartLearningClick}
+                className="px-6 py-3 bg-primary-600 text-white rounded-md font-medium hover:bg-primary-700 transition-all hover:shadow-glow"
+              >
                 Start Learning
               </button>
-              <button className="px-6 py-3 border border-gray-300 rounded-md font-medium hover:border-primary-600 hover:text-primary-600 transition-colors">
+              <button
+                onClick={handleExploreFeaturesClick}
+                className="px-6 py-3 border border-gray-300 rounded-md font-medium hover:border-primary-600 hover:text-primary-600 transition-colors"
+              >
                 Explore Features
               </button>
             </motion.div>
           </div>
-          
+
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -110,7 +126,7 @@ const HeroSection: React.FC = () => {
               >
                 <Brain className="w-32 h-32 md:w-40 md:h-40 text-primary-600" />
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -119,7 +135,7 @@ const HeroSection: React.FC = () => {
               >
                 <p className="text-sm font-medium text-gray-800">AI-Powered Learning</p>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -132,6 +148,9 @@ const HeroSection: React.FC = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* Conditionally render Chatbot */}
+      {isChatbotOpen && <ChatbotButton />} {/* Changed Chatbot to ChatbotButton to match your import */}
     </section>
   );
 };
