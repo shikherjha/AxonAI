@@ -8,15 +8,7 @@ const HeroSection: React.FC = () => {
   const featuresRef = useRef<HTMLElement | null>(null); // Reference to Features Section
   const controls = useAnimation();
 
-  const handleStartLearningClick = () => {
-    setIsChatbotOpen(true); // Open chatbot when "Start Learning" button is clicked
-  };
-
-  const handleExploreFeaturesClick = () => {
-    if (featuresRef.current) {
-      featuresRef.current.scrollIntoView({ behavior: 'smooth' }); // Smooth scroll to features section
-    }
-  };
+  
 
   useEffect(() => {
     const shimmerInterval = setInterval(() => {
