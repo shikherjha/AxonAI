@@ -1,6 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { NAVIGATION_ITEMS } from '../utils/constants';
+import { NavLink, useNavigate } from 'react-router-dom';
 
 interface NavigationProps {
   mobile?: boolean;
@@ -8,38 +7,53 @@ interface NavigationProps {
 }
 
 const Navigation: React.FC<NavigationProps> = ({ mobile = false, onNeedHelp }) => {
-  const location = useLocation();
-
-  const handleClick = (path: string) => {
-    if (path === '/help' && onNeedHelp) {
-      onNeedHelp();
-      return;
-    }
+  const navigate = useNavigate();
+  
+  const handleAITutorClick = () => {
+    navigate('/ai-tutor');
   };
 
+  const baseClasses = mobile
+    ? "block py-2 text-gray-700 hover:text-primary-600 transition-colors"
+    : "text-gray-700 hover:text-primary-600 transition-colors";
+
+  const activeClasses = mobile
+    ? "block py-2 text-primary-600 font-medium transition-colors"
+    : "text-primary-600 font-medium transition-colors";
+
   return (
-    <nav className={mobile ? 'flex flex-col space-y-2' : 'flex items-center space-x-6'}>
-      {NAVIGATION_ITEMS.map((item) => (
-        <Link
-          key={item.id}
-          to={item.path === '/help' ? '#' : item.path}
-          onClick={() => handleClick(item.path)}
-          className={`relative font-medium transition-all duration-200 ${
-            mobile 
-              ? 'p-2 hover:bg-gray-50 rounded-md text-gray-800 hover:text-primary-600' 
-              : 'text-gray-700 hover:text-primary-600 hover:scale-105'
-          } ${
-            location.pathname === item.path ? 'text-primary-600' : ''
-          } ${
-            (item.title === 'Curate Test' || item.title === 'Learning Pathway') 
-              ? 'after:content-[""] after:absolute after:h-0.5 after:w-0 after:left-0 after:bottom-0 after:bg-primary-500 hover:after:w-full after:transition-all' 
-              : ''
-          }`}
-        >
-          {item.title}
-        </Link>
-      ))}
-    </nav>
+    <>
+      <NavLink 
+        to="/global-search" 
+        className={({ isActive }) => isActive ? activeClasses : baseClasses}
+      >
+        Global Search
+      </NavLink>
+      <NavLink 
+        to="/curate-test" 
+        className={({ isActive }) => isActive ? activeClasses : baseClasses}
+      >
+        Curate Test
+      </NavLink>
+      <NavLink 
+        to="/learning-pathway" 
+        className={({ isActive }) => isActive ? activeClasses : baseClasses}
+      >
+        Learning Pathway
+      </NavLink>
+      <button 
+        onClick={handleAITutorClick}
+        className={baseClasses}
+      >
+        AI Tutor
+      </button>
+      <button 
+        onClick={onNeedHelp} 
+        className={baseClasses}
+      >
+        Need Help?
+      </button>
+    </>
   );
 };
 

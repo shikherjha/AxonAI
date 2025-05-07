@@ -14,38 +14,37 @@ export interface TestParameters {
 
 // Function to generate a test prompt based on user parameters
 export const generateTestPrompt = (params: TestParameters): string => {
-  const { subjectArea, topics, difficultyLevel, questionType } = params;
-  
-  // Map questionType values to more descriptive labels
-  const questionTypeMap = {
-    'mixed': 'a mix of multiple choice, written response, and practical problems',
-    'mcq': 'multiple choice questions',
-    'written': 'written response questions',
-    'practical': 'practical problems requiring application of knowledge'
-  };
-  
-  let prompt = `Generate a ${difficultyLevel} level test for the subject area: ${subjectArea}.`;
-  
-  if (topics && topics.trim() !== '') {
-    prompt += ` Focus on the following topics: ${topics}.`;
-  }
-  
-  prompt += ` Include ${questionTypeMap[questionType]}.`;
-  
-  prompt += `
-  
-Please format the test as follows:
-1. Start with a title and brief description of the test
-2. For each question:
-   - Clearly number and state the question
-   - For multiple choice questions, list options labeled A, B, C, D
-   - For written response questions, specify expected length or format
-   - For practical problems, provide necessary context and clear instructions
+  const { subjectArea, topics, difficultyLevel } = params;
 
-Please generate 10 questions total. For each question, also provide the correct answer in a separate "Answer Key" section at the end.`;
+  let prompt = `You are an expert educator. Create a test with 10 multiple choice questions on the subject: "${subjectArea}".\n`;
+
+  prompt += `The questions should be at a ${difficultyLevel} level.`;
+
+  if (topics && topics.trim() !== '') {
+    prompt += ` Focus specifically on the following topics: ${topics}.`;
+  }
+
+  prompt += `
+
+Formatting Guidelines:
+- Provide a title and a brief 2-3 sentence description of the test.
+- Number each question (1 to 10).
+- Each question must include 4 options labeled A, B, C, and D.
+- Only one correct answer per question.
+- Ensure a mix of conceptual understanding, factual recall, and application-based questions.
+- Avoid repeating the same structure or phrasing across questions.
+
+At the end, include an "Answer Key" section listing the correct option for each question like:
+Answer Key:
+1. B
+2. A
+...
+
+Generate only the test and answer key, no explanations.`;
 
   return prompt;
 };
+
 
 // Function to call the Groq API with the generated prompt, specifically using LLaMA model
 export const generateTest = async (params: TestParameters): Promise<string> => {
