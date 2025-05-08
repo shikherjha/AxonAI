@@ -26,7 +26,7 @@ const StandardLayout = ({ children }: { children: React.ReactNode }) => (
   </>
 );
 
-// Layout wrapper for full-page experiences (like AI Tutor)
+// Layout wrapper for full-page experiences (e.g., AI Tutor and TakeTest)
 const FullPageLayout = ({ children }: { children: React.ReactNode }) => (
   <>
     {children}
@@ -70,17 +70,19 @@ function App() {
                 </PrivateRoute>
               </StandardLayout>
             } />
-            
+
             {/* Full-page layout for AI Tutor */}
             <Route path="/ai-tutor" element={
               <FullPageLayout>
                 <AITutor />
               </FullPageLayout>
             } />
-            <Route path="/take-test" element={
-              <StandardLayout>
+
+            {/* Test-taking route without standard header */}
+            <Route path="/take-test/:testId" element={
+              <FullPageLayout>
                 <TakeTest />
-                </StandardLayout>
+              </FullPageLayout>
             } />
           </Routes>
         </div>

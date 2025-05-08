@@ -33,30 +33,36 @@ const TakeTest: React.FC = () => {
   
   // Load test data
   useEffect(() => {
+    
     const fetchTestData = async () => {
       if (!testId) {
+        console.error("❌ No test ID provided in the URL");
         setError('No test ID provided');
         setLoading(false);
         return;
       }
-      
+    
+      console.log("🔍 Fetching test with ID:", testId);
+    
       try {
-        // Fetch test from Supabase
         const fetchedTest = await getTestById(testId);
-        
+        console.log("📦 Fetched test object:", fetchedTest);
+    
         if (!fetchedTest || !fetchedTest.questions || fetchedTest.questions.length === 0) {
+          console.error("⚠️ Invalid or empty test data:", fetchedTest);
           throw new Error('Invalid test data');
         }
-        
+    
         setTest(fetchedTest);
-        setStartTime(new Date()); // Record when the test starts
+        setStartTime(new Date());
       } catch (err) {
-        console.error('Error loading test:', err);
+        console.error('💥 Error loading test:', err);
         setError('Failed to load test. Please try generating a new one.');
       } finally {
         setLoading(false);
       }
     };
+    
     
     fetchTestData();
     
