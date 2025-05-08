@@ -7,6 +7,7 @@ import {
   HelpCircle, 
   ChevronRight 
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 // Define feature icon components with consistent styling
 const FeatureIcon: React.FC<{ icon: React.ReactNode, color: string }> = ({ icon, color }) => (
@@ -21,7 +22,8 @@ const FeatureCard: React.FC<{
   icon: React.ReactNode;
   color: string;
   delay: number;
-}> = ({ title, description, icon, color, delay }) => {
+  link: string;  // Added link as a prop
+}> = ({ title, description, icon, color, delay, link }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -33,9 +35,13 @@ const FeatureCard: React.FC<{
       <FeatureIcon icon={icon} color={color} />
       <h3 className="text-xl font-semibold text-gray-900 mb-3">{title}</h3>
       <p className="text-gray-600 mb-6 flex-grow">{description}</p>
-      <button className="mt-auto self-start flex items-center text-blue-500 font-medium hover:text-blue-600 transition-colors">
+
+      <Link 
+        to={link}  // Using Link for navigation
+        className="mt-auto self-start flex items-center text-blue-500 font-medium hover:text-blue-600 transition-colors"
+      >
         Get Started <ChevronRight size={16} className="ml-1" />
-      </button>
+      </Link>
     </motion.div>
   );
 };
@@ -47,28 +53,32 @@ const FeaturesSection: React.FC = () => {
       description: "Access vast educational resources with our powerful AI-driven search engine tailored for academic content.",
       icon: <Search size={24} />,
       color: "bg-gradient-to-r from-blue-400 to-blue-500",
-      delay: 0.1
+      delay: 0.1,
+      link: "/global-search"  // Added link
     },
     {
       title: "Curate Test",
       description: "Create customized assessments and quizzes based on specific learning objectives and curriculum requirements.",
       icon: <FileText size={24} />,
       color: "bg-gradient-to-r from-purple-400 to-purple-500",
-      delay: 0.2
+      delay: 0.2,
+      link: "/curate-test"  // Added link
     },
     {
       title: "Learning Pathway",
       description: "Follow personalized learning journeys designed to match your pace, style, and educational goals.",
       icon: <Compass size={24} />,
       color: "bg-gradient-to-r from-teal-400 to-teal-500",
-      delay: 0.3
+      delay: 0.3,
+      link: "/learning-pathway"  // Added link
     },
     {
       title: "Need Help?",
       description: "Get instant assistance with homework, research, or any academic questions from our AI assistant.",
       icon: <HelpCircle size={24} />,
       color: "bg-gradient-to-r from-amber-400 to-amber-500",
-      delay: 0.4
+      delay: 0.4,
+      link: "/ai-tutor"  // Added link
     }
   ];
 
@@ -106,6 +116,7 @@ const FeaturesSection: React.FC = () => {
               icon={feature.icon}
               color={feature.color}
               delay={feature.delay}
+              link={feature.link}  // Passing the link to the FeatureCard component
             />
           ))}
         </div>
