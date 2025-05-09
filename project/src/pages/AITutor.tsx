@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Send, Paperclip, Mic, X, ChevronLeft } from 'lucide-react';
-import { getChatbotResponse, uploadFileToAI } from '../utils/chatbotAPI';
+import { Search, Send, Paperclip, Mic, X, ChevronLeft, AlertCircle } from 'lucide-react';
+import { getChatbotResponse, uploadFileToAI, checkBackendHealth, supabase, isAuthenticated } from '../utils/chatbotAPI';
 import { useNavigate } from 'react-router-dom';
 
 const AITutor: React.FC = () => {
@@ -11,7 +11,43 @@ const AITutor: React.FC = () => {
   const [isMicSupported] = useState('mediaDevices' in navigator);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<'loading' | 'healthy' | 'fallback'>('loading');
+  const [userAuth, setUserAuth] = useState<boolean>(false);
   const navigate = useNavigate();
+
+  // Check if user is authenticated and backend health on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const auth = await isAuthenticated();
+      setUserAuth(auth);
+      
+      // If not authenticated, redirect to login
+      if (!auth) {
+        navigate('/login');
+        return;
+      }
+      
+      // Check backend health
+      const isHealthy = await checkBackendHealth();
+      setBackendStatus(isHealthy ? 'healthy' : 'fallback');
+    };
+    
+    checkAuth();
+    
+    // Set up auth state listener
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        navigate('/login');
+      } else if (event === 'SIGNED_IN' && session) {
+        setUserAuth(true);
+      }
+    });
+
+    return () => {
+      // Clean up the subscription
+      authListener?.subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   // Scroll to bottom of chat when new messages are added
   useEffect(() => {
@@ -34,17 +70,18 @@ const AITutor: React.FC = () => {
           `You: [Uploading file: ${file.name}]`
         ]);
         
-        // In a full implementation, you would upload the file to your backend
-        // For now we'll just simulate it with a message
+        setIsLoading(true);
         const uploadResult = await uploadFileToAI(file);
+        setIsLoading(false);
         
         // Add AI response about the file
         setChatHistory(prev => [
           ...prev,
-          `AI Tutor: I've received your file "${file.name}". What would you like to know about it?`
+          `AI Tutor: ${uploadResult}`
         ]);
       } catch (error) {
         console.error('Error uploading file:', error);
+        setIsLoading(false);
         setChatHistory(prev => [
           ...prev,
           `AI Tutor: I had trouble processing your file. Could you try again?`
@@ -118,6 +155,11 @@ const AITutor: React.FC = () => {
     navigate('/');
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
   return (
     <div className="flex flex-col h-screen bg-white">
       {/* Header */}
@@ -138,14 +180,56 @@ const AITutor: React.FC = () => {
               AI Tutor
             </div>
           </div>
-          <div className="text-gray-700 font-medium">
-            New Era AI Learning Assistant
+          <div className="flex items-center space-x-4">
+            {backendStatus !== 'loading' && (
+              <div className={`px-3 py-1 rounded-full text-xs font-medium inline-flex items-center ${
+                backendStatus === 'healthy' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                <span className={`w-2 h-2 rounded-full mr-1 ${
+                  backendStatus === 'healthy' ? 'bg-green-500' : 'bg-yellow-500'
+                }`}></span>
+                {backendStatus === 'healthy' ? 'Advanced AI' : 'Standard AI'}
+              </div>
+            )}
+            <div className="text-gray-700 font-medium">
+              New Era AI Learning Assistant
+            </div>
+            {userAuth && (
+              <button 
+                onClick={handleSignOut}
+                className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full">
+        {/* Backend Status Banner (shows only when in fallback mode) */}
+        {backendStatus === 'fallback' && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-yellow-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  Advanced AI features are currently unavailable. Running in standard mode.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Chat Container */}
         <div 
           ref={chatContainerRef}
@@ -257,9 +341,9 @@ const AITutor: React.FC = () => {
             </div>
             <button
               onClick={handleSendMessage}
-              disabled={!message.trim()}
+              disabled={!message.trim() || isLoading}
               className={`p-3 rounded-lg transition-colors ${
-                message.trim() 
+                message.trim() && !isLoading
                   ? 'bg-primary-600 text-white hover:bg-primary-700' 
                   : 'bg-gray-100 text-gray-400'
               }`}

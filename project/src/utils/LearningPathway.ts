@@ -9,22 +9,45 @@ export interface LearningPathParameters {
   goal: string;
   level: 'beginner' | 'intermediate' | 'advanced';
   timeCommitment: string;
+  methods?: string[];
 }
 
 // Function to generate a learning path prompt based on user parameters
 export const generateLearningPathPrompt = (params: LearningPathParameters): string => {
-  const { goal, level, timeCommitment } = params;
+  const { goal, level, timeCommitment, methods = [] } = params;
   
-  let prompt = `Design a personalized learning pathway for someone who wants to learn ${goal}.`;
-  prompt += ` The learner's current level is ${level} and they can commit ${timeCommitment} per week.`;
+  // Extract hours per week
+  const timeRange = timeCommitment.replace('+', '-15');
+  
+  let prompt = `Design a concise, structured learning pathway for someone who wants to learn ${goal}.`;
+  prompt += ` The learner's current level is ${level} and they can commit ${timeCommitment} hours per week.`;
+  
+  if (methods.length > 0) {
+    prompt += ` They prefer learning through: ${methods.join(', ')}.`;
+  }
   
   prompt += `
-  Break the learning path into weekly goals and topics.
-  Provide a structured plan with specific topics, resources (e.g., books, videos, articles), and practical exercises.
-  Focus on a balanced learning experience tailored to the level of the learner.
-  Include estimated time for each topic, and give a suggested pace for completion.
-
-  Please generate a plan for 6 weeks.`;
+  Important guidelines:
+  1. Limit the plan to a MAXIMUM of 8-10 weeks (do not exceed 10 weeks).
+  2. Structure the output clearly with Week 1:, Week 2:, etc. at the start of each week.
+  3. For each week, provide 3-5 specific learning tasks, resources, or exercises.
+  4. Balance theory with practical applications.
+  5. Include specific, actionable items for each week.
+  6. Ensure the weekly workload fits within their time commitment (${timeRange} hours per week).
+  7. Keep explanations brief and focused.
+  
+  Format your response following this example structure:
+  Week 1:
+  - Topic/Concept 1 (brief description, resource)
+  - Activity/Exercise
+  - Project component
+  
+  Week 2:
+  - Topic/Concept 2 (brief description, resource)
+  - Activity/Exercise
+  ...and so on
+  
+  Make sure all resources mentioned are specific and real.`;
 
   return prompt;
 };
@@ -41,7 +64,7 @@ export const generateLearningPath = async (params: LearningPathParameters): Prom
         messages: [
           {
             role: "system",
-            content: "You are an expert learning path designer who creates personalized learning pathways."
+            content: "You are an expert learning path designer who creates structured, concise, and personalized learning pathways. You focus on creating practical, actionable learning plans limited to 8-10 weeks maximum."
           },
           {
             role: "user",
@@ -49,7 +72,7 @@ export const generateLearningPath = async (params: LearningPathParameters): Prom
           }
         ],
         temperature: 0.5,
-        max_tokens: 4000
+        max_tokens: 2500
       },
       {
         headers: {
