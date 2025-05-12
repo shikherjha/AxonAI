@@ -1,5 +1,15 @@
 {
+  "name": "axonai",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite preview"
+  },
   "dependencies": {
     "recharts": "^2.15.3"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
   }
 }
