@@ -2,122 +2,176 @@ import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase Configuration
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Create Supabase client
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY!;
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Configuration
-const USE_FASTAPI = true; // Set to true to use FastAPI backend
-const FASTAPI_BASE_URL = 'http://127.0.0.1:8000'; // Your FastAPI server address
-const FASTAPI_CHAT_ENDPOINT = `${FASTAPI_BASE_URL}/api/tutor/chat`; // Correct endpoint path
-const FASTAPI_UPLOAD_ENDPOINT = `${FASTAPI_BASE_URL}/api/documents/upload`; // Document upload endpoint
-const FASTAPI_RESOURCES_ENDPOINT = `${FASTAPI_BASE_URL}/api/tutor/resources`; // Resources endpoint if available
+// FastAPI Configuration
+const USE_FASTAPI = true;
+const FASTAPI_BASE_URL = 'http://127.0.0.1:8000';
+const FASTAPI_TOKEN_ENDPOINT = `${FASTAPI_BASE_URL}/token`;
+const FASTAPI_CHAT_ENDPOINT = `${FASTAPI_BASE_URL}/api/tutor/chat`;
+const FASTAPI_UPLOAD_ENDPOINT = `${FASTAPI_BASE_URL}/api/documents/upload`;
+const FASTAPI_RESOURCES_ENDPOINT = `${FASTAPI_BASE_URL}/api/tutor/resources`;
 
-// Groq API configuration (fallback)
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+// Groq API (fallback)
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY!;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-// Get the current user's session token
-const getSupabaseToken = async (): Promise<string | null> => {
+// ------------------------------------------------------------------------
+// 1) Fetch & cache your FastAPI JWT
+// ------------------------------------------------------------------------
+const getAxonToken = async (): Promise<string> => {
+  // Check if token exists and isn't expired (simple expiration check)
+  const cachedToken = localStorage.getItem('axon_token');
+  const tokenTimestamp = localStorage.getItem('axon_token_timestamp');
+  const tokenExpiry = 55 * 60 * 1000; // 55 minutes in milliseconds (slightly less than backend's 60min)
+  
+  const isTokenValid = cachedToken && tokenTimestamp && 
+                      (Date.now() - parseInt(tokenTimestamp) < tokenExpiry);
+  
+  if (isTokenValid) {
+    console.log('Using cached token');
+    return cachedToken;
+  }
+  
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error || !session) {
-      console.error('Error getting Supabase session:', error);
-      return null;
+    console.log('Fetching new token');
+    const { data } = await axios.post(FASTAPI_TOKEN_ENDPOINT);
+    if (!data.access_token) {
+      throw new Error('Invalid token response');
     }
     
-    return session.access_token;
+    const token = data.access_token;
+    
+    // Store token with timestamp
+    localStorage.setItem('axon_token', token);
+    localStorage.setItem('axon_token_timestamp', Date.now().toString());
+    
+    return token;
   } catch (error) {
-    console.error('Error getting Supabase token:', error);
-    return null;
+    console.error('Failed to get authentication token:', error);
+    throw new Error('Authentication failed');
   }
 };
 
-// Function to send a prompt and get a response
+// ------------------------------------------------------------------------
+// 2) Main entry: prompt → response
+// ------------------------------------------------------------------------
 export const getChatbotResponse = async (prompt: string, context?: string[]): Promise<string> => {
-  // Try FastAPI first if enabled
   if (USE_FASTAPI) {
     try {
-      const response = await getResponseFromFastAPI(prompt, context);
-      return response;
-    } catch (error) {
-      console.error('FastAPI backend failed, falling back to Groq:', error);
-      // Fall back to Groq on error
+      return await getResponseFromFastAPI(prompt, context);
+    } catch (err) {
+      console.error('FastAPI backend failed, falling back to Groq:', err);
       return getResponseFromGroq(prompt);
     }
   } else {
-    // Use Groq directly if FastAPI is disabled
     return getResponseFromGroq(prompt);
   }
 };
 
-// Function to get response from your FastAPI backend
+// ------------------------------------------------------------------------
+// 3) Talk to FastAPI /chat
+// ------------------------------------------------------------------------
 const getResponseFromFastAPI = async (prompt: string, context?: string[]): Promise<string> => {
   try {
-    // Get Supabase authentication token
-    const token = await getSupabaseToken();
-    
-    if (!token) {
-      throw new Error('Failed to get Supabase authentication token');
-    }
-    
+    const token = await getAxonToken();
     const conversationId = localStorage.getItem('conversationId') || '';
+
+    console.log(`Sending request to ${FASTAPI_CHAT_ENDPOINT}`);
+    console.log(`ConversationId: ${conversationId || 'new conversation'}`);
     
-    const response = await axios.post(
+    const resp = await axios.post(
       FASTAPI_CHAT_ENDPOINT,
       {
         message: prompt,
         conversation_id: conversationId,
-        documents: [], // Add document references if needed
-        model: "default", // Use default model
-        mode: "educational" // Educational mode
+        documents: context || [],
+        model: 'default',
+        mode: 'educational',
       },
       {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        timeout: 30000, // 30 second timeout
+        timeout: 30000,
       }
     );
 
-    // Store conversation ID for future messages
-    if (response.data.conversation_id) {
-      localStorage.setItem('conversationId', response.data.conversation_id);
+    console.log('Response received with status:', resp.status);
+    
+    if (resp.data.conversation_id) {
+      localStorage.setItem('conversationId', resp.data.conversation_id);
     }
 
-    // Return the response text
-    return response.data.response || response.data.message || 'No response received';
+    return resp.data.message || 'No response received';
   } catch (error: any) {
-    console.error('Error getting response from FastAPI:', error);
-    
-    // Check if it's an authentication error
-    if (error.response && error.response.status === 401) {
-      // Maybe refresh the token or redirect to login
-      // For now, just throw the error to trigger fallback
+    // Enhanced error handling
+    if (error.response) {
+      console.error(`Error response: ${error.response.status} - ${error.response.statusText}`);
+      console.error('Error data:', error.response.data);
+      
+      // If token is invalid or expired, try once with a fresh token
+      if (error.response.status === 401) {
+        try {
+          console.log('Token rejected, trying with fresh token');
+          // Clear existing token
+          localStorage.removeItem('axon_token');
+          localStorage.removeItem('axon_token_timestamp');
+          
+          // Get new token
+          const newToken = await getAxonToken();
+          const conversationId = localStorage.getItem('conversationId') || '';
+          
+          // Retry request with new token
+          const retryResp = await axios.post(
+            FASTAPI_CHAT_ENDPOINT,
+            {
+              message: prompt,
+              conversation_id: conversationId,
+              documents: context || [],
+              model: 'default',
+              mode: 'educational',
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${newToken}`,
+              },
+              timeout: 30000,
+            }
+          );
+          
+          if (retryResp.data.conversation_id) {
+            localStorage.setItem('conversationId', retryResp.data.conversation_id);
+          }
+          
+          return retryResp.data.message || 'No response received';
+        } catch (retryError: any) {
+          console.error('Retry with fresh token failed:', retryError.message);
+        }
+      }
+    } else {
+      console.error('Error with request:', error.message);
     }
     
-    // Throw the error to trigger fallback
+    // Rethrow to trigger fallback
     throw error;
   }
 };
 
-// Function to get response from Groq (fallback)
+// ------------------------------------------------------------------------
+// 4) Groq fallback (unchanged)
+// ------------------------------------------------------------------------
 const getResponseFromGroq = async (prompt: string): Promise<string> => {
   try {
     const response = await axios.post(
       GROQ_API_URL,
       {
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
       },
       {
         headers: {
@@ -126,136 +180,176 @@ const getResponseFromGroq = async (prompt: string): Promise<string> => {
         },
       }
     );
-
     return response.data.choices[0].message.content.trim();
   } catch (error) {
     console.error('Error getting response from Groq:', error);
-    return 'Sorry, I am having trouble understanding that right now. Both primary and fallback systems are unavailable.';
+    return 'Sorry, both systems are unavailable right now.';
   }
 };
 
-// Upload file to the AI system (for document analysis)
+// ------------------------------------------------------------------------
+// 5) File upload → FastAPI
+// ------------------------------------------------------------------------
 export const uploadFileToAI = async (file: File): Promise<string> => {
   if (!USE_FASTAPI) {
-    // If FastAPI is disabled, simulate a file upload response
     return new Promise((resolve) => {
       setTimeout(() => {
-        resolve(`I've received your file "${file.name}" and will analyze it. What would you like to know about it?`);
+        resolve(`I've received your file "${file.name}" and will analyze it. What would you like to know?`);
       }, 1500);
     });
   }
-  
+
   try {
-    // Get Supabase authentication token
-    const token = await getSupabaseToken();
-    
-    if (!token) {
-      throw new Error('Failed to get Supabase authentication token');
-    }
-    
+    const token = await getAxonToken();
     const formData = new FormData();
     formData.append('file', file);
-    
-    // Add conversation ID if available for context
+
     const conversationId = localStorage.getItem('conversationId');
     if (conversationId) {
       formData.append('conversation_id', conversationId);
     }
-    
-    const response = await axios.post(
-      FASTAPI_UPLOAD_ENDPOINT,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`,
-        },
-        timeout: 60000, // 60 second timeout for larger files
-      }
-    );
-    
-    return response.data.message || "File uploaded successfully.";
-  } catch (error: any) {
-    console.error('Error uploading file to AI system:', error);
-    
-    // Fall back to simulated response
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(`I've received your file "${file.name}" and will analyze it, but processing might be limited. What would you like to know about it?`);
-      }, 1500);
-    });
-  }
-};
 
-// Function to get AI-generated learning resources
-export const getAILearningResources = async (topic: string): Promise<any[]> => {
-  if (!USE_FASTAPI) {
-    return [{ 
-      title: "Sample Resource",
-      description: "This is a placeholder. Connect to FastAPI for real resources.",
-      type: "article"
-    }];
-  }
-  
-  try {
-    // Get Supabase authentication token
-    const token = await getSupabaseToken();
+    console.log(`Uploading file ${file.name} to ${FASTAPI_UPLOAD_ENDPOINT}`);
     
-    if (!token) {
-      throw new Error('Failed to get Supabase authentication token');
+    const resp = await axios.post(FASTAPI_UPLOAD_ENDPOINT, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'Authorization': `Bearer ${token}`,
+      },
+      timeout: 60000,
+    });
+
+    console.log('File upload response:', resp.status);
+    return resp.data.message || 'File uploaded successfully.';
+  } catch (error: any) {
+    console.error('Error uploading file to AI system:', error.message);
+    
+    // If token is invalid or expired, try once with a fresh token
+    if (error.response && error.response.status === 401) {
+      try {
+        // Clear existing token
+        localStorage.removeItem('axon_token');
+        localStorage.removeItem('axon_token_timestamp');
+        
+        // Get new token
+        const newToken = await getAxonToken();
+        
+        // Prepare form data again
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const conversationId = localStorage.getItem('conversationId');
+        if (conversationId) {
+          formData.append('conversation_id', conversationId);
+        }
+        
+        // Retry upload with new token
+        const retryResp = await axios.post(FASTAPI_UPLOAD_ENDPOINT, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${newToken}`,
+          },
+          timeout: 60000,
+        });
+        
+        return retryResp.data.message || 'File uploaded successfully.';
+      } catch (retryError: any) {
+        console.error('Retry file upload failed:', retryError.message);
+      }
     }
     
-    const response = await axios.get(
-      FASTAPI_RESOURCES_ENDPOINT,
-      {
-        params: { topic },
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      }
-    );
-    
-    return response.data.resources || [];
+    return `I received your file "${file.name}" but encountered an error during processing.`;
+  }
+};
+
+// ------------------------------------------------------------------------
+// 6) Learning resources → FastAPI
+// ------------------------------------------------------------------------
+export const getAILearningResources = async (topic: string): Promise<any[]> => {
+  if (!USE_FASTAPI) {
+    return [{
+      title: 'Sample Resource',
+      description: 'This is a placeholder. Connect to FastAPI for real resources.',
+      type: 'article',
+    }];
+  }
+
+  try {
+    const token = await getAxonToken();
+    const resp = await axios.get(FASTAPI_RESOURCES_ENDPOINT, {
+      params: { topic },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return resp.data.resources || [];
   } catch (error: any) {
-    console.error('Error getting learning resources:', error);
+    // If token is invalid or expired, try once with a fresh token
+    if (error.response && error.response.status === 401) {
+      try {
+        // Clear existing token
+        localStorage.removeItem('axon_token');
+        localStorage.removeItem('axon_token_timestamp');
+        
+        // Get new token
+        const newToken = await getAxonToken();
+        
+        // Retry request with new token
+        const retryResp = await axios.get(FASTAPI_RESOURCES_ENDPOINT, {
+          params: { topic },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${newToken}`,
+          },
+        });
+        
+        return retryResp.data.resources || [];
+      } catch (retryError) {
+        console.error('Retry getting resources failed:', retryError);
+      }
+    }
     
-    // Return fallback resources
-    return [{ 
-      title: "Sample Resource",
-      description: "This is a placeholder. Connect to FastAPI for real resources.",
-      type: "article"
+    console.error('Error getting learning resources:', error.message);
+    return [{
+      title: 'Sample Resource',
+      description: 'Resources temporarily unavailable.',
+      type: 'article',
     }];
   }
 };
 
-// Function to check FastAPI backend health
+// ------------------------------------------------------------------------
+// 7) Health & Auth checks (Supabase‑based)
+// ------------------------------------------------------------------------
 export const checkBackendHealth = async (): Promise<boolean> => {
   try {
-    const response = await axios.get(
-      `${FASTAPI_BASE_URL}/health`,
-      { timeout: 5000 } // 5 second timeout
-    );
-    
-    return response.data.status === 'healthy';
+    console.log(`Checking backend health at ${FASTAPI_BASE_URL}/health`);
+    const resp = await axios.get(`${FASTAPI_BASE_URL}/health`, { timeout: 5000 });
+    return resp.data.status === 'healthy';
   } catch (error) {
     console.error('Backend health check failed:', error);
     return false;
   }
 };
 
-// Function to check if user is authenticated
 export const isAuthenticated = async (): Promise<boolean> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  return !!session;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return !!session;
+  } catch (error) {
+    console.error('Error checking authentication:', error);
+    return false;
+  }
 };
 
-// Initialize backend check on load
+// ------------------------------------------------------------------------
+// 8) Run health check on load
+// ------------------------------------------------------------------------
 (async () => {
   try {
-    const isHealthy = await checkBackendHealth();
-    console.log(`FastAPI backend is ${isHealthy ? 'healthy' : 'unavailable'}`);
-    // You can automatically set USE_FASTAPI based on health check if desired
+    const healthy = await checkBackendHealth();
+    console.log(`FastAPI backend is ${healthy ? 'healthy' : 'unavailable'}`);
   } catch (error) {
     console.error('Error during initial health check:', error);
   }
